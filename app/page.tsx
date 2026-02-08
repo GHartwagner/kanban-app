@@ -1,61 +1,64 @@
-const COLUMNS = [
+"use client";
+
+import { useState, useCallback } from "react";
+import AppHeader from "@/components/AppHeader";
+import Board from "@/components/Board";
+import type { ColumnData } from "@/components/Board";
+
+const INITIAL_COLUMNS: ColumnData[] = [
   {
     title: "To Do",
     cards: [
-      "Aufgabe recherchieren",
-      "Konzept erstellen",
-      "Review einplanen",
+      { id: "todo-1", text: "Aufgabe recherchieren" },
+      { id: "todo-2", text: "Konzept erstellen" },
+      { id: "todo-3", text: "Review einplanen" },
     ],
   },
   {
     title: "Doing",
     cards: [
-      "UI-Komponenten bauen",
-      "API anbinden",
+      { id: "doing-1", text: "UI-Komponenten bauen" },
+      { id: "doing-2", text: "API anbinden" },
     ],
   },
   {
     title: "Done",
     cards: [
-      "Projekt aufsetzen",
-      "Design-System festlegen",
-      "Erste Tests schreiben",
+      { id: "done-1", text: "Projekt aufsetzen" },
+      { id: "done-2", text: "Design-System festlegen" },
+      { id: "done-3", text: "Erste Tests schreiben" },
     ],
   },
-] as const;
+];
 
 export default function Home() {
+  const [columns, setColumns] = useState<ColumnData[]>(INITIAL_COLUMNS);
+
+  const handleMoveCard = useCallback(
+    (cardId: string, sourceColumnTitle: string, targetColumnTitle: string) => {
+      setColumns((prev) => {
+        const sourceCol = prev.find((c) => c.title === sourceColumnTitle);
+        const card = sourceCol?.cards.find((c) => c.id === cardId);
+        if (!card) return prev;
+        return prev.map((col) => {
+          if (col.title === sourceColumnTitle) {
+            return { ...col, cards: col.cards.filter((c) => c.id !== cardId) };
+          }
+          if (col.title === targetColumnTitle) {
+            return { ...col, cards: [...col.cards, card] };
+          }
+          return col;
+        });
+      });
+    },
+    []
+  );
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Kanban
-        </h1>
-      </header>
-
+      <AppHeader />
       <main className="mx-auto max-w-7xl p-4 md:p-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {COLUMNS.map((column) => (
-            <section
-              key={column.title}
-              className="flex flex-col rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                {column.title}
-              </h2>
-              <ul className="flex flex-col gap-3">
-                {column.cards.map((text, i) => (
-                  <li
-                    key={`${column.title}-${i}`}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                  >
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <Board columns={columns} onMoveCard={handleMoveCard} />
       </main>
     </div>
   );
