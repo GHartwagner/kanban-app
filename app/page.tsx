@@ -1,65 +1,54 @@
-"use client";
-
-import { useState, useCallback } from "react";
-import AppHeader from "@/components/AppHeader";
-import Board from "@/components/Board";
+import KanbanBoardClient from "@/components/KanbanBoardClient";
 import type { ColumnData } from "@/components/Board";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-const INITIAL_COLUMNS: ColumnData[] = [
-  {
-    title: "To Do",
-    cards: [
-      { id: "todo-1", text: "Aufgabe recherchieren" },
-      { id: "todo-2", text: "Konzept erstellen" },
-      { id: "todo-3", text: "Review einplanen" },
-    ],
-  },
-  {
-    title: "Doing",
-    cards: [
-      { id: "doing-1", text: "UI-Komponenten bauen" },
-      { id: "doing-2", text: "API anbinden" },
-    ],
-  },
-  {
-    title: "Done",
-    cards: [
-      { id: "done-1", text: "Projekt aufsetzen" },
-      { id: "done-2", text: "Design-System festlegen" },
-      { id: "done-3", text: "Erste Tests schreiben" },
-    ],
-  },
-];
+const STATUS_COLUMNS = [
+  { key: "todo", title: "To Do" },
+  { key: "doing", title: "Doing" },
+  { key: "done", title: "Done" },
+] as const;
 
-export default function Home() {
-  const [columns, setColumns] = useState<ColumnData[]>(INITIAL_COLUMNS);
+export default async function Home() {
+  const supabase = getSupabaseAdmin();
 
-  const handleMoveCard = useCallback(
-    (cardId: string, sourceColumnTitle: string, targetColumnTitle: string) => {
-      setColumns((prev) => {
-        const sourceCol = prev.find((c) => c.title === sourceColumnTitle);
-        const card = sourceCol?.cards.find((c) => c.id === cardId);
-        if (!card) return prev;
-        return prev.map((col) => {
-          if (col.title === sourceColumnTitle) {
-            return { ...col, cards: col.cards.filter((c) => c.id !== cardId) };
-          }
-          if (col.title === targetColumnTitle) {
-            return { ...col, cards: [...col.cards, card] };
-          }
-          return col;
-        });
-      });
-    },
-    []
-  );
+  if (!supabase) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-6 py-4 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <p className="font-medium">ENV fehlt</p>
+          <p className="mt-1 text-sm">
+            SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY müssen in .env.local gesetzt sein.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <AppHeader />
-      <main className="mx-auto max-w-7xl p-4 md:p-6">
-        <Board columns={columns} onMoveCard={handleMoveCard} />
-      </main>
-    </div>
-  );
+  const { data: rows, error } = await supabase
+    .from("cards")
+    .select("id, title, status, position")
+    .order("status")
+    .order("position");
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+          <p className="font-medium">Fehler beim Laden</p>
+          <p className="mt-1 text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  type CardRow = { id: string; title: string | null; status: string; position: number };
+  const cards: CardRow[] = rows ?? [];
+  const columns: ColumnData[] = STATUS_COLUMNS.map(({ key, title }) => ({
+    title,
+    cards: cards
+      .filter((c) => c.status === key)
+      .map((c) => ({ id: c.id, text: c.title ?? "" })),
+  }));
+
+  return <KanbanBoardClient initialColumns={columns} />;
 }
