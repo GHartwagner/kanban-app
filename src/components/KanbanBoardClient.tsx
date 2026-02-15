@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import AppHeader from "@/components/AppHeader";
 import Board from "@/components/Board";
 import type { ColumnData } from "@/components/Board";
 
@@ -32,12 +31,5 @@ export default function KanbanBoardClient({
     []
   );
 
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <AppHeader />
-      <main className="mx-auto max-w-7xl p-4 md:p-6">
-        <Board columns={columns} onMoveCard={handleMoveCard} />
-      </main>
-    </div>
-  );
+  return <Board columns={columns} onMoveCard={handleMoveCard} />;
 }

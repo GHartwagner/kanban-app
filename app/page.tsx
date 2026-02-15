@@ -1,6 +1,9 @@
 import KanbanBoardClient from "@/components/KanbanBoardClient";
+import AppHeader from "@/components/AppHeader";
 import type { ColumnData } from "@/components/Board";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 const STATUS_COLUMNS = [
   { key: "todo", title: "To Do" },
@@ -8,7 +11,58 @@ const STATUS_COLUMNS = [
   { key: "done", title: "Done" },
 ] as const;
 
-export default async function Home() {
+export async function createCardAction() {
+  "use server";
+
+  const buildErrorRedirect = (message: string): never => {
+    const params = new URLSearchParams({ insertError: message });
+    redirect(`/?${params.toString()}`);
+  };
+
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    buildErrorRedirect(
+      "Supabase-Konfiguration fehlt (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)."
+    );
+  }
+  const supabaseClient = supabase!;
+
+  const { data: maxRows, error: maxError } = await supabaseClient
+    .from("cards")
+    .select("position")
+    .eq("status", "todo")
+    .order("position", { ascending: false })
+    .limit(1);
+
+  if (maxError) {
+    buildErrorRedirect(
+      "Konnte die nächste Position für neue Karten nicht ermitteln."
+    );
+  }
+
+  const maxPosition = maxRows?.[0]?.position ?? 0;
+  const nextPosition = maxPosition + 1;
+
+  const { error: insertError } = await supabaseClient.from("cards").insert({
+    title: "Neue Aufgabe",
+    status: "todo",
+    position: nextPosition,
+  });
+
+  if (insertError) {
+    buildErrorRedirect("Die neue Karte konnte nicht angelegt werden.");
+  }
+
+  revalidatePath("/");
+  redirect("/");
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const supabase = getSupabaseAdmin();
 
   if (!supabase) {
@@ -50,5 +104,31 @@ export default async function Home() {
       .map((c) => ({ id: c.id, text: c.title ?? "" })),
   }));
 
-  return <KanbanBoardClient initialColumns={columns} />;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const insertErrorParam = resolvedSearchParams?.["insertError"];
+  const insertError =
+    typeof insertErrorParam === "string" ? insertErrorParam : null;
+
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      <AppHeader>
+        <form action={createCardAction}>
+          <button
+            type="submit"
+            className="inline-flex items-center rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-zinc-50 shadow-sm hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            + Neue Karte
+          </button>
+        </form>
+      </AppHeader>
+      <main className="mx-auto max-w-7xl p-4 md:p-6">
+        {insertError && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+            {insertError}
+          </div>
+        )}
+        <KanbanBoardClient initialColumns={columns} />
+      </main>
+    </div>
+  );
 }
